@@ -1,95 +1,114 @@
+"use client";
+
+import { useEffect, useMemo } from "react";
+import { useState } from "react";
+import { getUser } from "./api/usersAPI";
+import { Button, Card, Row } from "antd";
 import Image from "next/image";
-import styles from "./page.module.css";
+import { TPagination, TUser } from "./type";
+import UsersAPIResponse from "./api/types/UsersAPIResponse";
+import UsersAPIRequest from "./api/types/UsersApIRequest";
 
 export default function Home() {
-  return (
-    <div className={styles.page}>
-      <main className={styles.main}>
-        <Image
-          className={styles.logo}
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol>
-          <li>
-            Get started by editing <code>src/app/page.tsx</code>.
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const defaultPagination = { skip: 0, limit: 30, total: 0 };
 
-        <div className={styles.ctas}>
-          <a
-            className={styles.primary}
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className={styles.logo}
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-            className={styles.secondary}
-          >
-            Read our docs
-          </a>
-        </div>
-      </main>
-      <footer className={styles.footer}>
-        <a
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+  const [usersList, setUsersList] = useState<TUser[]>([]);
+  const [currentPagination, setCurrentPagination] =
+    useState<TPagination>(defaultPagination);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isNextDisable, setIsNextDisable] = useState(false);
+
+  const callUser = async (props: UsersAPIRequest) => {
+    await setIsLoading(true);
+    const response: UsersAPIResponse = await getUser(props);
+    setIsLoading(false);
+    await setUsersList(response.users);
+    await setCurrentPagination({
+      skip: response.skip,
+      limit: response.limit,
+      total: response.total,
+    });
+  };
+
+  useEffect(() => {
+    callUser({ skip: defaultPagination.skip, limit: defaultPagination.limit });
+  }, []);
+
+  const onNext = () => {
+    const { limit, skip, total } = currentPagination;
+    const newSkip =
+      typeof skip === "number" && typeof limit === "number" ? skip + limit : 0;
+
+    if (total > newSkip) {
+      setCurrentPagination({ ...currentPagination, skip: newSkip });
+
+      callUser({ skip: newSkip, limit });
+
+      if (typeof total === "number" && typeof limit === "number")
+        setIsNextDisable(total <= newSkip + limit);
+    }
+  };
+
+  const onPreviews = () => {
+    const { limit, skip } = currentPagination;
+    const newSkip =
+      typeof skip === "number" && typeof limit === "number" ? skip - limit : 0;
+    if (newSkip >= 0) {
+      setCurrentPagination({ ...currentPagination, skip: newSkip });
+      callUser({ skip: newSkip, limit });
+    }
+
+    if (isNextDisable) setIsNextDisable(false);
+  };
+
+  const currentPage: number = useMemo(() => {
+    const skip = currentPagination?.skip ?? 0;
+    const limit = currentPagination?.limit ?? 30;
+
+    return Math.floor(skip / limit) + 1;
+  }, [currentPagination.limit, currentPagination.skip]);
+
+  if (isLoading) return <p>Loading...</p>;
+
+  return (
+    <>
+      <Row style={{ justifyContent: "center" }}>
+        {usersList?.map((item) => {
+          return (
+            <Card
+              key={`__${item.id}`}
+              style={{ width: 200, margin: 16, textAlign: "center" }}
+            >
+              <p>{`${item.firstName} ${item.lastName}`}</p>
+              {item?.image && (
+                <Image
+                  src={item.image}
+                  width={50}
+                  height={50}
+                  alt={`image-${item.id}`}
+                />
+              )}
+            </Card>
+          );
+        })}
+      </Row>
+      <Row style={{ alignItems: "center", justifyContent: "center" }}>
+        <p>{`Page: ${currentPage}`}</p>
+        <Button
+          disabled={currentPage === 1}
+          style={{ marginLeft: 16 }}
+          onClick={onPreviews}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          Prev
+        </Button>
+        <Button
+          disabled={isNextDisable}
+          style={{ marginLeft: 16 }}
+          onClick={onNext}
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+          Next
+        </Button>
+      </Row>
+    </>
   );
 }
